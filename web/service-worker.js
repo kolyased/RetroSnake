@@ -1,4 +1,4 @@
-const cacheName = "retrosnake-web-v4";
+const cacheName = "retrosnake-web-v5";
 
 const assets = [
   "/",
