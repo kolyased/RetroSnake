@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#08100b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RetroSnake" />
+    <title>RetroSnake</title>
+    <link rel="manifest" href="./public/manifest.webmanifest" />
+    <link rel="icon" href="./public/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./public/icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main class="game-shell" aria-label="RetroSnake game">
+      <section class="top-bar" aria-label="Game status">
+        <button class="icon-button pause-button" type="button" data-action="pause" aria-label="Pause">
+          <span></span>
+          <span></span>
+        </button>
+        <output class="score" id="score">0</output>
+      </section>
+
+      <section class="board-wrap" aria-label="Game board">
+        <canvas id="board" width="400" height="480"></canvas>
+      </section>
+
+      <section class="controls" aria-label="Direction controls">
+        <button type="button" data-direction="up" aria-label="Up">▲</button>
+        <button type="button" data-direction="left" aria-label="Left">◀</button>
+        <button type="button" data-direction="right" aria-label="Right">▶</button>
+        <button type="button" data-direction="down" aria-label="Down">▼</button>
+      </section>
+
+      <section class="overlay overlay-main" id="mainMenu" aria-label="Main menu">
+        <div class="panel">
+          <h1 data-i18n="title">RETRO SNAKE</h1>
+          <p class="best-line"><span data-i18n="best">Best</span> <span id="bestScore">0</span></p>
+          <button type="button" class="primary" data-action="play" data-i18n="play">Play</button>
+          <button type="button" data-action="settings-main" data-i18n="settings">Settings</button>
+        </div>
+      </section>
+
+      <section class="overlay" id="pauseMenu" aria-label="Pause menu" hidden>
+        <div class="panel panel-pause">
+          <h2 data-i18n="paused">PAUSED</h2>
+          <button type="button" class="primary" data-action="resume" data-i18n="continue">Continue</button>
+          <button type="button" data-action="settings-pause" data-i18n="settings">Settings</button>
+          <button type="button" data-action="restart" data-i18n="restart">Restart</button>
+          <button type="button" data-action="main-menu" data-i18n="mainMenu">Main Menu</button>
+        </div>
+      </section>
+
+      <section class="overlay" id="gameOverMenu" aria-label="Game over menu" hidden>
+        <div class="panel panel-danger">
+          <h2 data-i18n="gameOver">GAME OVER</h2>
+          <p><span data-i18n="score">Score</span> <span id="finalScore">0</span></p>
+          <p><span data-i18n="best">Best</span> <span id="finalBestScore">0</span></p>
+          <button type="button" class="primary" data-action="restart" data-i18n="restart">Restart</button>
+          <button type="button" data-action="main-menu" data-i18n="mainMenu">Main Menu</button>
+        </div>
+      </section>
+
+      <section class="overlay" id="settingsMenu" aria-label="Settings" hidden>
+        <div class="panel panel-settings">
+          <h2 data-i18n="settings">Settings</h2>
+          <button type="button" class="primary" data-action="toggle-sound" id="soundToggle">Sound: ON</button>
+          <p id="volumeLabel">Volume: 5/10</p>
+          <div class="stepper">
+            <button type="button" data-action="volume-down" aria-label="Decrease volume">−</button>
+            <button type="button" data-action="volume-up" aria-label="Increase volume">+</button>
+          </div>
+          <button type="button" class="primary" data-action="toggle-language" id="languageToggle">Language: EN</button>
+          <button type="button" data-action="settings-back" data-i18n="back">Back</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
