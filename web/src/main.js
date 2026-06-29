@@ -81,9 +81,13 @@ const audioSources = {
 };
 
 const audio = {
-  background: null,
-  eat: null,
-  gameover: null,
+  context: null,
+  backgroundGain: null,
+  effectGain: null,
+  buffers: {},
+  loading: {},
+  backgroundSource: null,
+  backgroundStarted: false,
 };
 
 const state = {
@@ -282,7 +286,6 @@ function endGame() {
 function pauseGame() {
   if (state.screen !== "playing" || !state.gameRunning) return;
   state.screen = "paused";
-  pauseBackground();
   updateUI();
 }
 
@@ -307,7 +310,7 @@ function returnToMainMenu() {
   state.food = null;
   state.score = 0;
   state.requestedDirection = null;
-  pauseBackground();
+  stopBackground();
   updateUI();
   draw();
 }
@@ -315,7 +318,6 @@ function returnToMainMenu() {
 function openSettings(fromScreen) {
   state.previousScreen = fromScreen;
   state.screen = "settings";
-  if (fromScreen === "paused") pauseBackground();
   updateUI();
 }
 
@@ -367,10 +369,10 @@ function toggleSound() {
   localStorage.setItem(soundEnabledKey, String(state.soundEnabled));
   setAudioVolumes();
 
-  if (state.soundEnabled && state.previousScreen === "paused") {
+  if (state.soundEnabled && state.gameRunning) {
     playBackground();
   } else if (!state.soundEnabled) {
-    pauseBackground();
+    stopBackground();
   }
 
   updateSettingsLabels();
@@ -380,6 +382,9 @@ function changeVolume(delta) {
   state.volumeLevel = clamp(state.volumeLevel + delta, 1, 10);
   localStorage.setItem(volumeLevelKey, String(state.volumeLevel));
   setAudioVolumes();
+  if (state.soundEnabled && state.screen === "settings") {
+    playEffect("eat");
+  }
   updateSettingsLabels();
 }
 
@@ -390,37 +395,106 @@ function toggleLanguage() {
 }
 
 function setAudioVolumes() {
-  if (audio.background) audio.background.volume = (state.volumeLevel / 10) * 0.35;
-  if (audio.eat) audio.eat.volume = state.volumeLevel / 10;
-  if (audio.gameover) audio.gameover.volume = state.volumeLevel / 10;
+  const volume = state.soundEnabled ? state.volumeLevel / 10 : 0;
+  if (audio.backgroundGain) audio.backgroundGain.gain.value = volume * 0.35;
+  if (audio.effectGain) audio.effectGain.gain.value = volume;
 }
 
 function playBackground() {
   if (!state.soundEnabled) return;
-  const background = getAudio("background");
-  background.loop = true;
-  setAudioVolumes();
-  background.play().catch(() => {});
+  ensureAudioReady()
+    .then(() => loadAudioBuffer("background"))
+    .then((buffer) => {
+      if (!state.soundEnabled || !state.gameRunning || audio.backgroundStarted) return;
+
+      const source = audio.context.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.connect(audio.backgroundGain);
+      source.start(0);
+      audio.backgroundSource = source;
+      audio.backgroundStarted = true;
+    })
+    .catch(() => {});
 }
 
-function pauseBackground() {
-  if (audio.background) audio.background.pause();
+function stopBackground() {
+  if (!audio.backgroundSource) return;
+  audio.backgroundSource.stop();
+  audio.backgroundSource.disconnect();
+  audio.backgroundSource = null;
+  audio.backgroundStarted = false;
 }
 
 function playEffect(playerName) {
   if (!state.soundEnabled) return;
-  const player = getAudio(playerName);
-  setAudioVolumes();
-  player.currentTime = 0;
-  player.play().catch(() => {});
+  ensureAudioReady()
+    .then(() => loadAudioBuffer(playerName))
+    .then((buffer) => {
+      if (!state.soundEnabled) return;
+
+      const source = audio.context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audio.effectGain);
+      source.start(0);
+    })
+    .catch(() => {});
 }
 
-function getAudio(name) {
-  if (!audio[name]) {
-    audio[name] = new Audio(audioSources[name]);
+function ensureAudioReady() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return Promise.reject(new Error("Web Audio is not available"));
+
+  if (!audio.context) {
+    audio.context = new AudioContextClass();
+    audio.backgroundGain = audio.context.createGain();
+    audio.effectGain = audio.context.createGain();
+    audio.backgroundGain.connect(audio.context.destination);
+    audio.effectGain.connect(audio.context.destination);
+    setAudioVolumes();
   }
 
-  return audio[name];
+  if (audio.context.state === "suspended") {
+    return audio.context.resume();
+  }
+
+  return Promise.resolve();
+}
+
+function warmAudio() {
+  ensureAudioReady()
+    .then(() => Promise.all(Object.keys(audioSources).map((name) => loadAudioBuffer(name))))
+    .catch(() => {});
+}
+
+function loadAudioBuffer(name) {
+  if (audio.buffers[name]) return Promise.resolve(audio.buffers[name]);
+  if (audio.loading[name]) return audio.loading[name];
+
+  audio.loading[name] = fetch(audioSources[name])
+    .then((response) => {
+      if (!response.ok) throw new Error(`Audio failed: ${name}`);
+      return response.arrayBuffer();
+    })
+    .then((arrayBuffer) => decodeAudioData(arrayBuffer))
+    .then((buffer) => {
+      audio.buffers[name] = buffer;
+      return buffer;
+    })
+    .finally(() => {
+      audio.loading[name] = null;
+    });
+
+  return audio.loading[name];
+}
+
+function decodeAudioData(arrayBuffer) {
+  return new Promise((resolve, reject) => {
+    const result = audio.context.decodeAudioData(arrayBuffer, resolve, reject);
+    if (result && typeof result.then === "function") {
+      result.then(resolve).catch(reject);
+    }
+  });
 }
 
 function loop(timestamp) {
@@ -480,6 +554,8 @@ function handleAction(action) {
 }
 
 document.addEventListener("click", (event) => {
+  warmAudio();
+
   const actionButton = event.target.closest("[data-action]");
   if (actionButton) {
     handleAction(actionButton.dataset.action);
@@ -493,6 +569,8 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  warmAudio();
+
   const keys = {
     ArrowUp: "up",
     KeyW: "up",
@@ -516,6 +594,8 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener(
   "touchstart",
   (event) => {
+    warmAudio();
+
     if (state.screen !== "playing" || event.touches.length === 0) return;
     const touch = event.touches[0];
     state.touchStart = { x: touch.clientX, y: touch.clientY };
