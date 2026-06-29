@@ -1,4 +1,4 @@
-const cacheName = "retrosnake-web-v4";
+const cacheName = "retrosnake-web-v6";
 
 const assets = [
   "/",
@@ -7,6 +7,8 @@ const assets = [
   "/src/main.js",
   "/public/manifest.webmanifest",
   "/apple-touch-icon.png",
+  "/apple-touch-icon-precomposed.png",
+  "/favicon.ico",
   "/public/icons/icon-192.png",
   "/public/icons/icon-512.png",
   "/public/icons/apple-touch-icon.png",
