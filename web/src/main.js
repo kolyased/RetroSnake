@@ -75,9 +75,9 @@ const elements = {
 const ctx = elements.canvas.getContext("2d");
 
 const audio = {
-  background: new Audio("./public/sounds/background.mp3"),
-  eat: new Audio("./public/sounds/eat.wav"),
-  gameover: new Audio("./public/sounds/gameover.wav"),
+  background: new Audio("/public/sounds/background.mp3"),
+  eat: new Audio("/public/sounds/eat.wav"),
+  gameover: new Audio("/public/sounds/gameover.wav"),
 };
 
 audio.background.loop = true;

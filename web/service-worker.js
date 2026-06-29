@@ -1,17 +1,18 @@
-const cacheName = "retrosnake-web-v2";
+const cacheName = "retrosnake-web-v3";
 
 const assets = [
-  "./",
-  "./index.html",
-  "./src/styles.css",
-  "./src/main.js",
-  "./public/manifest.webmanifest",
-  "./public/icons/icon-192.png",
-  "./public/icons/icon-512.png",
-  "./public/icons/apple-touch-icon.png",
-  "./public/sounds/background.mp3",
-  "./public/sounds/eat.wav",
-  "./public/sounds/gameover.wav",
+  "/",
+  "/index.html",
+  "/src/styles.css",
+  "/src/main.js",
+  "/public/manifest.webmanifest",
+  "/apple-touch-icon.png",
+  "/public/icons/icon-192.png",
+  "/public/icons/icon-512.png",
+  "/public/icons/apple-touch-icon.png",
+  "/public/sounds/background.mp3",
+  "/public/sounds/eat.wav",
+  "/public/sounds/gameover.wav",
 ];
 
 self.addEventListener("install", (event) => {
@@ -37,7 +38,15 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request);
+      if (cached) return cached;
+
+      return fetch(event.request).catch(() => {
+        if (event.request.mode === "navigate") {
+          return caches.match("/index.html");
+        }
+
+        return Response.error();
+      });
     })
   );
 });
