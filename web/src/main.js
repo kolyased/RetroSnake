@@ -82,12 +82,14 @@ const audioSources = {
 
 const audio = {
   context: null,
+  masterGain: null,
   backgroundGain: null,
   effectGain: null,
   buffers: {},
   loading: {},
+  backgroundPlayer: null,
   backgroundSource: null,
-  backgroundStarted: false,
+  backgroundReady: false,
 };
 
 const state = {
@@ -396,6 +398,7 @@ function toggleLanguage() {
 
 function setAudioVolumes() {
   const volume = state.soundEnabled ? state.volumeLevel / 10 : 0;
+  if (audio.masterGain) audio.masterGain.gain.value = 1;
   if (audio.backgroundGain) audio.backgroundGain.gain.value = volume * 0.35;
   if (audio.effectGain) audio.effectGain.gain.value = volume;
 }
@@ -403,27 +406,18 @@ function setAudioVolumes() {
 function playBackground() {
   if (!state.soundEnabled) return;
   ensureAudioReady()
-    .then(() => loadAudioBuffer("background"))
-    .then((buffer) => {
-      if (!state.soundEnabled || !state.gameRunning || audio.backgroundStarted) return;
-
-      const source = audio.context.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-      source.connect(audio.backgroundGain);
-      source.start(0);
-      audio.backgroundSource = source;
-      audio.backgroundStarted = true;
+    .then(() => {
+      const player = getBackgroundPlayer();
+      if (!state.soundEnabled || !state.gameRunning || !player.paused) return;
+      player.play().catch(() => {});
     })
     .catch(() => {});
 }
 
 function stopBackground() {
-  if (!audio.backgroundSource) return;
-  audio.backgroundSource.stop();
-  audio.backgroundSource.disconnect();
-  audio.backgroundSource = null;
-  audio.backgroundStarted = false;
+  if (!audio.backgroundPlayer) return;
+  audio.backgroundPlayer.pause();
+  audio.backgroundPlayer.currentTime = 0;
 }
 
 function playEffect(playerName) {
@@ -447,10 +441,12 @@ function ensureAudioReady() {
 
   if (!audio.context) {
     audio.context = new AudioContextClass();
+    audio.masterGain = audio.context.createGain();
     audio.backgroundGain = audio.context.createGain();
     audio.effectGain = audio.context.createGain();
-    audio.backgroundGain.connect(audio.context.destination);
-    audio.effectGain.connect(audio.context.destination);
+    audio.backgroundGain.connect(audio.masterGain);
+    audio.effectGain.connect(audio.masterGain);
+    audio.masterGain.connect(audio.context.destination);
     setAudioVolumes();
   }
 
@@ -463,8 +459,28 @@ function ensureAudioReady() {
 
 function warmAudio() {
   ensureAudioReady()
-    .then(() => Promise.all(Object.keys(audioSources).map((name) => loadAudioBuffer(name))))
+    .then(() => {
+      getBackgroundPlayer();
+      return Promise.all(["eat", "gameover"].map((name) => loadAudioBuffer(name)));
+    })
     .catch(() => {});
+}
+
+function getBackgroundPlayer() {
+  if (!audio.backgroundPlayer) {
+    audio.backgroundPlayer = new Audio(audioSources.background);
+    audio.backgroundPlayer.loop = true;
+    audio.backgroundPlayer.preload = "auto";
+    audio.backgroundPlayer.playsInline = true;
+  }
+
+  if (!audio.backgroundReady) {
+    audio.backgroundSource = audio.context.createMediaElementSource(audio.backgroundPlayer);
+    audio.backgroundSource.connect(audio.backgroundGain);
+    audio.backgroundReady = true;
+  }
+
+  return audio.backgroundPlayer;
 }
 
 function loadAudioBuffer(name) {
