@@ -1,4 +1,4 @@
-const cacheName = "retrosnake-web-v3";
+const cacheName = "retrosnake-web-v4";
 
 const assets = [
   "/",
@@ -10,9 +10,6 @@ const assets = [
   "/public/icons/icon-192.png",
   "/public/icons/icon-512.png",
   "/public/icons/apple-touch-icon.png",
-  "/public/sounds/background.mp3",
-  "/public/sounds/eat.wav",
-  "/public/sounds/gameover.wav",
 ];
 
 self.addEventListener("install", (event) => {

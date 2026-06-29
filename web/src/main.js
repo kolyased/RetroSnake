@@ -74,13 +74,17 @@ const elements = {
 
 const ctx = elements.canvas.getContext("2d");
 
-const audio = {
-  background: new Audio("/public/sounds/background.mp3"),
-  eat: new Audio("/public/sounds/eat.wav"),
-  gameover: new Audio("/public/sounds/gameover.wav"),
+const audioSources = {
+  background: "/public/sounds/background.mp3",
+  eat: "/public/sounds/eat.wav",
+  gameover: "/public/sounds/gameover.wav",
 };
 
-audio.background.loop = true;
+const audio = {
+  background: null,
+  eat: null,
+  gameover: null,
+};
 
 const state = {
   screen: "mainMenu",
@@ -233,7 +237,7 @@ function moveSnake() {
 
   if (didEat) {
     state.score += 1;
-    playEffect(audio.eat);
+    playEffect("eat");
     spawnFood();
   } else {
     state.snake.pop();
@@ -265,7 +269,7 @@ function spawnFood() {
 function endGame() {
   state.screen = "gameOver";
   state.gameRunning = false;
-  playEffect(audio.gameover);
+  playEffect("gameover");
 
   if (state.score > state.bestScore) {
     state.bestScore = state.score;
@@ -386,26 +390,37 @@ function toggleLanguage() {
 }
 
 function setAudioVolumes() {
-  audio.background.volume = (state.volumeLevel / 10) * 0.35;
-  audio.eat.volume = state.volumeLevel / 10;
-  audio.gameover.volume = state.volumeLevel / 10;
+  if (audio.background) audio.background.volume = (state.volumeLevel / 10) * 0.35;
+  if (audio.eat) audio.eat.volume = state.volumeLevel / 10;
+  if (audio.gameover) audio.gameover.volume = state.volumeLevel / 10;
 }
 
 function playBackground() {
   if (!state.soundEnabled) return;
+  const background = getAudio("background");
+  background.loop = true;
   setAudioVolumes();
-  audio.background.play().catch(() => {});
+  background.play().catch(() => {});
 }
 
 function pauseBackground() {
-  audio.background.pause();
+  if (audio.background) audio.background.pause();
 }
 
-function playEffect(player) {
+function playEffect(playerName) {
   if (!state.soundEnabled) return;
+  const player = getAudio(playerName);
   setAudioVolumes();
   player.currentTime = 0;
   player.play().catch(() => {});
+}
+
+function getAudio(name) {
+  if (!audio[name]) {
+    audio[name] = new Audio(audioSources[name]);
+  }
+
+  return audio[name];
 }
 
 function loop(timestamp) {
