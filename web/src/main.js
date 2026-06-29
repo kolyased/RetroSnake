@@ -81,14 +81,9 @@ const audioSources = {
 };
 
 const audio = {
-  context: null,
-  buffers: {},
-  loading: {},
-  backgroundSource: null,
-  backgroundGain: null,
-  effectGain: null,
-  fallback: {},
-  unlocked: false,
+  background: null,
+  eat: null,
+  gameover: null,
 };
 
 const state = {
@@ -287,6 +282,7 @@ function endGame() {
 function pauseGame() {
   if (state.screen !== "playing" || !state.gameRunning) return;
   state.screen = "paused";
+  pauseBackground();
   updateUI();
 }
 
@@ -319,6 +315,7 @@ function returnToMainMenu() {
 function openSettings(fromScreen) {
   state.previousScreen = fromScreen;
   state.screen = "settings";
+  if (fromScreen === "paused") pauseBackground();
   updateUI();
 }
 
@@ -370,7 +367,7 @@ function toggleSound() {
   localStorage.setItem(soundEnabledKey, String(state.soundEnabled));
   setAudioVolumes();
 
-  if (state.soundEnabled && state.previousScreen === "paused" && state.gameRunning) {
+  if (state.soundEnabled && state.previousScreen === "paused") {
     playBackground();
   } else if (!state.soundEnabled) {
     pauseBackground();
@@ -383,9 +380,6 @@ function changeVolume(delta) {
   state.volumeLevel = clamp(state.volumeLevel + delta, 1, 10);
   localStorage.setItem(volumeLevelKey, String(state.volumeLevel));
   setAudioVolumes();
-  if (state.soundEnabled && state.screen === "settings") {
-    playEffect("eat");
-  }
   updateSettingsLabels();
 }
 
@@ -396,148 +390,37 @@ function toggleLanguage() {
 }
 
 function setAudioVolumes() {
-  const normalizedVolume = state.volumeLevel / 10;
-  if (audio.backgroundGain) audio.backgroundGain.gain.value = normalizedVolume * 0.35;
-  if (audio.effectGain) audio.effectGain.gain.value = normalizedVolume;
-
-  Object.values(audio.fallback).forEach((player) => {
-    player.volume = normalizedVolume;
-  });
+  if (audio.background) audio.background.volume = (state.volumeLevel / 10) * 0.35;
+  if (audio.eat) audio.eat.volume = state.volumeLevel / 10;
+  if (audio.gameover) audio.gameover.volume = state.volumeLevel / 10;
 }
 
 function playBackground() {
   if (!state.soundEnabled) return;
-  playBackgroundWithWebAudio().catch(() => playBackgroundFallback());
-}
-
-function pauseBackground() {
-  if (audio.backgroundSource) {
-    audio.backgroundSource.stop();
-    audio.backgroundSource.disconnect();
-    audio.backgroundSource = null;
-  }
-
-  if (audio.fallback.background) {
-    audio.fallback.background.pause();
-  }
-}
-
-function playEffect(playerName) {
-  if (!state.soundEnabled) return;
-  playEffectWithWebAudio(playerName).catch(() => playEffectFallback(playerName));
-}
-
-function ensureAudioContext() {
-  if (!audio.context) {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) return null;
-
-    audio.context = new AudioContextClass();
-    audio.backgroundGain = audio.context.createGain();
-    audio.effectGain = audio.context.createGain();
-    audio.backgroundGain.connect(audio.context.destination);
-    audio.effectGain.connect(audio.context.destination);
-    setAudioVolumes();
-  }
-
-  if (audio.context.state === "suspended") {
-    audio.context.resume().catch(() => {});
-  }
-
-  return audio.context;
-}
-
-function unlockAudio() {
-  const context = ensureAudioContext();
-  if (!context || audio.unlocked) return;
-
-  const source = context.createBufferSource();
-  source.buffer = context.createBuffer(1, 1, 22050);
-  source.connect(context.destination);
-  source.start(0);
-  audio.unlocked = true;
-  warmAudioBuffers();
-}
-
-function warmAudioBuffers() {
-  Object.keys(audioSources).forEach((name) => {
-    loadAudioBuffer(name).catch(() => {});
-  });
-}
-
-function loadAudioBuffer(name) {
-  const context = ensureAudioContext();
-  if (!context) return Promise.reject(new Error("Web Audio is not available"));
-  if (audio.buffers[name]) return Promise.resolve(audio.buffers[name]);
-  if (audio.loading[name]) return audio.loading[name];
-
-  audio.loading[name] = fetch(audioSources[name])
-    .then((response) => {
-      if (!response.ok) throw new Error(`Audio request failed: ${name}`);
-      return response.arrayBuffer();
-    })
-    .then((arrayBuffer) => context.decodeAudioData(arrayBuffer))
-    .then((buffer) => {
-      audio.buffers[name] = buffer;
-      return buffer;
-    })
-    .finally(() => {
-      audio.loading[name] = null;
-    });
-
-  return audio.loading[name];
-}
-
-async function playBackgroundWithWebAudio() {
-  const context = ensureAudioContext();
-  if (!context) throw new Error("Web Audio is not available");
-  if (audio.backgroundSource) return;
-
-  const buffer = await loadAudioBuffer("background");
-  if (!state.soundEnabled || !state.gameRunning || state.screen === "mainMenu") return;
-
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.loop = true;
-  source.connect(audio.backgroundGain);
-  source.start(0);
-  audio.backgroundSource = source;
-}
-
-async function playEffectWithWebAudio(name) {
-  const context = ensureAudioContext();
-  if (!context) throw new Error("Web Audio is not available");
-
-  const buffer = await loadAudioBuffer(name);
-  if (!state.soundEnabled) return;
-
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audio.effectGain);
-  source.start(0);
-}
-
-function playBackgroundFallback() {
-  const background = getFallbackAudio("background");
+  const background = getAudio("background");
   background.loop = true;
   setAudioVolumes();
   background.play().catch(() => {});
 }
 
-function playEffectFallback(name) {
-  const player = getFallbackAudio(name);
+function pauseBackground() {
+  if (audio.background) audio.background.pause();
+}
+
+function playEffect(playerName) {
+  if (!state.soundEnabled) return;
+  const player = getAudio(playerName);
   setAudioVolumes();
   player.currentTime = 0;
   player.play().catch(() => {});
 }
 
-function getFallbackAudio(name) {
-  if (!audio.fallback[name]) {
-    audio.fallback[name] = new Audio(audioSources[name]);
-    audio.fallback[name].preload = "auto";
+function getAudio(name) {
+  if (!audio[name]) {
+    audio[name] = new Audio(audioSources[name]);
   }
 
-  return audio.fallback[name];
+  return audio[name];
 }
 
 function loop(timestamp) {
@@ -597,8 +480,6 @@ function handleAction(action) {
 }
 
 document.addEventListener("click", (event) => {
-  unlockAudio();
-
   const actionButton = event.target.closest("[data-action]");
   if (actionButton) {
     handleAction(actionButton.dataset.action);
@@ -612,8 +493,6 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  unlockAudio();
-
   const keys = {
     ArrowUp: "up",
     KeyW: "up",
@@ -637,8 +516,6 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener(
   "touchstart",
   (event) => {
-    unlockAudio();
-
     if (state.screen !== "playing" || event.touches.length === 0) return;
     const touch = event.touches[0];
     state.touchStart = { x: touch.clientX, y: touch.clientY };
@@ -669,7 +546,7 @@ window.addEventListener("resize", resizeCanvas);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
   });
 }
 
