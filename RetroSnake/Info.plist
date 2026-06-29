@@ -26,5 +26,7 @@
 		<key>UIColorName</key>
 		<string>Black</string>
 	</dict>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
 </dict>
 </plist>
